@@ -1,5 +1,7 @@
 import fastify from 'fastify'
-import crypto from 'node:crypto'
+import { db } from './src/database/client.ts'
+import { courses } from './src/database/schema.ts'
+import { eq } from 'drizzle-orm'
 
 const server = fastify({
   logger: {
@@ -15,63 +17,91 @@ const server = fastify({
 
 type CoursesType = {
   id: string
-  name: string
+  title: string
+  description: string
 }
 
-let courses = [
-  { id: '1', name: 'Curso de Node.js' },
-  { id: '2', name: 'Curso de React' },
-  { id: '3', name: 'Curso de React Native' },
-]
-
-server.get('/courses', (request, reply) => {
-  return reply.status(200).send({ courses })
+server.get('/courses', async (request, reply) => {
+  const result = await db
+    .select({
+      id: courses.id,
+      title: courses.title,
+      description: courses.description,
+    })
+    .from(courses)
+  return reply.status(200).send({ result })
 })
 
-server.get('/courses/:id', (request, reply) => {
+server.get('/courses/:id', async (request, reply) => {
   const { id } = request.params as CoursesType
-  const course = courses.find((course) => course.id === id)
-  return reply.status(200).send({ course })
+  const result = await db.select().from(courses).where(eq(courses.id, id))
+  if (result.length > 0) {
+    return reply.status(200).send({ course: result[0] })
+  }
+  return reply.status(404).send()
 })
 
-server.post('/courses', (request, reply) => {
-  const courseId = crypto.randomUUID()
-  const { name } = request.body as CoursesType
+server.post('/courses', async (request, reply) => {
+  const { title, description } = request.body as CoursesType
 
-  courses.push({
-    id: courseId,
-    name: name,
-  })
+  if (!title) {
+    return reply.status(400).send({ message: 'Título é obrigatório' })
+  }
 
-  return reply.status(201).send({ courseId })
+  const result = await db
+    .insert(courses)
+    .values({
+      title: title,
+      description: description,
+    })
+    .returning()
+
+  return reply.status(201).send({ courseID: result[0].id })
 })
 
-server.put('/courses/:id', (request, reply) => {
+server.put('/courses/:id', async (request, reply) => {
   const { id } = request.params as CoursesType
   const data = request.body as CoursesType
 
   // Verifica se o curso existe
-  const courseIndex = courses.findIndex((course) => course.id === id)
+  const courseIndex = await db.select().from(courses).where(eq(courses.id, id))
 
-  if (courseIndex === -1) {
+  if (!courseIndex) {
     return reply.status(404).send({ error: 'Curso não encontrado' })
   }
 
   // Atualiza os dados mantendo o mesmo ID
-  courses[courseIndex] = { ...courses[courseIndex], ...data, id }
+  const result = await db
+    .update(courses)
+    .set({
+      title: data.title,
+      description: data.description,
+    })
+    .where(eq(courses.id, id))
+    .returning({
+      id: courses.id,
+      title: courses.title,
+      description: courses.description,
+    })
 
   return reply.status(200).send({
     message: 'Curso atualizado com sucesso!',
-    course: courses[courseIndex],
+    course: result,
   })
 })
 
-server.delete('/courses/:id', (request, reply) => {
+server.delete('/courses/:id', async (request, reply) => {
   const { id } = request.params as CoursesType
-  const delCourse = courses.find((course) => course.id === id)
-  courses = courses.filter((del) => del !== delCourse)
+  const result = await db.delete(courses).where(eq(courses.id, id)).returning({
+    id: courses.id,
+    title: courses.title,
+    description: courses.description,
+  })
 
-  return reply.status(200).send({ delCourse })
+  return reply.status(200).send({
+    message: 'Curso deletado com sucesso!',
+    course: result,
+  })
 })
 
 server.listen({ port: 3333 }, () => {
