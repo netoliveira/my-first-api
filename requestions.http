@@ -1,0 +1,27 @@
+GET http://localhost:3333/courses
+
+###
+
+GET http://localhost:3333/courses/4ddd369d-8cb3-44b1-b856-4136410d207e
+
+###
+
+POST http://localhost:3333/courses
+content-type: application/json
+
+{
+  "name": "Curso de Next.js"
+}
+
+###
+
+DELETE  http://localhost:3333/courses/685c806d-9a92-4abe-859f-272cb9ab8640
+
+###
+
+PUT http://localhost:3333/courses/bc8456c6-8150-4941-86cc-b37509744c4a
+content-type: application/json
+
+{
+  "name": "Curso de Next.js"
+}
